@@ -1,0 +1,16 @@
+*
+!.gitignore
+!*.nix
+!.shellhook
+
+!scripts/
+!*.sh
+
+!ex/
+!*.tj
+
+!vim/
+!*.vim
+
+!src/
+!*.hs

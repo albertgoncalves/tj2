@@ -1,0 +1,28 @@
+id = \(x: 'a0) -> 'a0 =
+    x
+
+combine = \(x: 'a1, y: 'b1) -> { a: 'a1, b: 'b1 } =
+    { a: (id x), b: (id y) }
+
+pipe = \(x: 'a3, f: ('a3) -> 'b3) -> 'b3 =
+    (f x)
+
+compose = \(f0: ('b4) -> 'c4, f1: ('a4) -> 'b4) -> ('a4) -> 'c4 =
+    \(x: 'a4) -> 'c4 =
+        (f0 (f1 x))
+
+(pipe X id)
+(pipe Y \(y: 'a5) -> X = X)
+(pipe Y \(y: Y) -> X = X)
+(pipe Y \(x: 'a6) -> X = (id X))
+
+(combine X Y)
+
+f0 = \(x: X) -> Y = Y
+f1 = \(y: Y) -> Z = Z
+
+((compose f1 f0) X)
+
+# # NOTE: This *should* fail!
+# apply = \(f: ('a7) -> 'b7, x: 'b7) -> 'b7 =
+#     (f x)
