@@ -21,8 +21,12 @@ compose = \(f0: ('b4) -> 'c4, f1: ('a4) -> 'b4) -> ('a4) -> 'c4 =
 f0 = \(x: X) -> Y = Y
 f1 = \(y: Y) -> Z = Z
 
-((compose f1 f0) X)
+(combine W ((compose f1 f0) X))
 
 # # NOTE: This *should* fail!
 # apply = \(f: ('a7) -> 'b7, x: 'b7) -> 'b7 =
 #     (f x)
+
+f2 = \(ab: { a: 'a8, b: 'b8 }) -> W = W
+
+(pipe (combine A B) f2)

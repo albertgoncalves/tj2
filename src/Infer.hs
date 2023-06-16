@@ -1,6 +1,7 @@
 module Infer where
 
 import Ast (Expr (..), Type (..))
+import Data.List (sortOn)
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 
@@ -14,7 +15,12 @@ merge (TypeFunc childArgs childReturn) (TypeFunc parentArgs parentReturn)
       concat
         (zipWith merge childArgs parentArgs)
         ++ merge childReturn parentReturn
-merge (TypeObj _) (TypeObj _) = undefined
+merge (TypeObj childPairs) (TypeObj parentPairs)
+  | childKeys /= parentKeys = undefined
+  | otherwise = concat $ zipWith merge childValues parentValues
+  where
+    (childKeys, childValues) = unzip $ sortOn fst childPairs
+    (parentKeys, parentValues) = unzip $ sortOn fst parentPairs
 merge _ _ = undefined
 
 deref :: M.Map (String, Int) Type -> (String, Int) -> Maybe Type
@@ -26,6 +32,10 @@ deref replacements key = do
 
 unify :: M.Map (String, Int) Type -> [(Type, Type)] -> M.Map (String, Int) Type
 unify replacements [] = replacements
+unify replacements ((childType, parentType) : pairs)
+  | childType == parentType = unify replacements pairs
+unify replacements ((childType@(TypeObj _), parentType@(TypeObj _)) : pairs) =
+  unify replacements $ merge childType parentType ++ pairs
 unify _ ((TypeVar _ childK, TypeVar _ parentK) : _)
   | childK == parentK = undefined
 unify replacements ((childType, TypeVar parentVar parentK) : pairs) =
@@ -37,8 +47,6 @@ unify replacements ((childType, TypeVar parentVar parentK) : pairs) =
     Nothing -> unify (M.insert parentKey childType replacements) pairs
   where
     parentKey = (parentVar, parentK)
-unify replacements ((childType, parentType) : pairs)
-  | childType == parentType = unify replacements pairs
 unify _ _ = undefined
 
 swap :: M.Map (String, Int) Type -> Type -> Type
