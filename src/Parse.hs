@@ -1,7 +1,7 @@
 module Parse where
 
 import Ast (Expr (..), Stmt (..), Type (..))
-import Data.Char (isAlphaNum, isDigit, isLower, isSpace, isUpper)
+import Data.Char (isAlphaNum, isLower, isSpace, isUpper)
 import Text.ParserCombinators.ReadP
   ( ReadP,
     char,
@@ -98,7 +98,7 @@ typeVar :: ReadP Type
 typeVar =
   TypeVar
     <$> (token (char '\'') *> munch1 isLower)
-    <*> (read <$> munch1 isDigit)
+    <*> pure 0
 
 type' :: ReadP Type
 type' = choice [typeFunc, typeSymbol, typeObj, typeVar]
@@ -150,5 +150,35 @@ stmtVoid = StmtVoid <$> expr
 stmt :: ReadP Stmt
 stmt = choice [stmtBinding, stmtVoid]
 
+enumerateType :: Int -> Type -> Type
+enumerateType k (TypeFunc argTypes returnType) =
+  TypeFunc (map (enumerateType k) argTypes) (enumerateType k returnType)
+enumerateType _ type''@(TypeSymbol _) = type''
+enumerateType k (TypeObj pairs) =
+  TypeObj $ map (enumerateType k <$>) pairs
+enumerateType k (TypeVar var _) = TypeVar var k
+
+enumerateExpr :: Int -> Expr -> Expr
+enumerateExpr k (ExprCall func args) =
+  ExprCall (enumerateExpr k func) (map (enumerateExpr k) args)
+enumerateExpr k (ExprFunc argTypes returnType returnExpr) =
+  ExprFunc
+    (map (enumerateType k <$>) argTypes)
+    (enumerateType k returnType)
+    (enumerateExpr k returnExpr)
+enumerateExpr _ expr'@(ExprLabel _) = expr'
+enumerateExpr k (ExprObj pairs) =
+  ExprObj $ map (enumerateExpr k <$>) pairs
+enumerateExpr _ expr'@(ExprSymbol _) = expr'
+
+enumerateStmt :: Int -> Stmt -> Stmt
+enumerateStmt k (StmtBinding label expr') =
+  StmtBinding label $ enumerateExpr k expr'
+enumerateStmt k (StmtVoid expr') = StmtVoid $ enumerateExpr k expr'
+
 parse :: String -> [Stmt]
-parse = fst . head . readP_to_S (many1 stmt <* token eof)
+parse =
+  zipWith enumerateStmt [0 ..]
+    . fst
+    . head
+    . readP_to_S (many1 stmt <* token eof)
