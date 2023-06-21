@@ -4,6 +4,7 @@ mkShell.override { stdenv = llvmPackages_14.stdenv; } {
         ghc
         hlint
         ormolu
+        python3Packages.flake8
         shellcheck
     ];
     shellHook = ''

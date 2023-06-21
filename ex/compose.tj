@@ -1,0 +1,14 @@
+id = \(x: 'a) -> 'a =
+    x
+
+combine = \(x: 'a, y: 'b) -> { a: 'a, b: 'b } =
+    { a: (id x), b: (id y) }
+
+compose = \(f0: ('b) -> 'c, f1: ('a) -> 'b) -> ('a) -> 'c =
+    \(x: 'a) -> 'c =
+        (f0 (f1 x))
+
+f0 = \(x: X) -> Y = Y
+f1 = \(y: Y) -> Z = Z
+
+(combine W ((compose f1 f0) X))

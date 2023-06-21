@@ -7,25 +7,10 @@ combine = \(x: 'a, y: 'b) -> { a: 'a, b: 'b } =
 pipe = \(x: 'a, f: ('a) -> 'b) -> 'b =
     (f x)
 
-compose = \(f0: ('b) -> 'c, f1: ('a) -> 'b) -> ('a) -> 'c =
-    \(x: 'a) -> 'c =
-        (f0 (f1 x))
-
 (pipe X id)
 (pipe Y \(y: 'a) -> X = X)
 (pipe Y \(y: Y) -> X = X)
 (pipe Y \(x: 'a) -> X = (id X))
-
-(combine X Y)
-
-f0 = \(x: X) -> Y = Y
-f1 = \(y: Y) -> Z = Z
-
-(combine W ((compose f1 f0) X))
-
-# # NOTE: This *should* fail!
-# apply = \(f: ('a) -> 'b, x: 'b) -> 'b =
-#     (f x)
 
 f2 = \(ab: { a: 'a, b: 'b }) -> W = W
 

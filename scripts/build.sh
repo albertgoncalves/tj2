@@ -11,6 +11,7 @@ done
 flags_hs=(
     "-fdiagnostics-color=always"
     "-i$WD/src"
+    -O
     "-outputdir $WD/build"
     -Wall
     -Wcompat
@@ -37,4 +38,3 @@ for _ in $(jobs -p); do
 done
 
 ghc "${flags_hs[@]}" -o "$WD/bin/main" "$WD/src/Main.hs"
-"$WD/bin/main" "$1"

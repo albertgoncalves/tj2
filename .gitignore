@@ -4,6 +4,7 @@
 !.shellhook
 
 !scripts/
+!*.py
 !*.sh
 
 !ex/

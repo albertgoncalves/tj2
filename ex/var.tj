@@ -1,0 +1,9 @@
+id = \(x: 'a) -> 'a =
+    x
+
+combine = \(x: 'a, y: 'b) -> { a: 'a, b: 'b } =
+    { a: (id x), b: (id y) }
+
+(combine X Y)
+(combine (combine X Y) Z)
+(combine (combine (combine X Y) Z) (combine X Y))
