@@ -1,7 +1,16 @@
 module Parse where
 
-import Ast (Expr (..), Stmt (..), Type (..))
+import Ast
+  ( Expr (..),
+    ExprOffset,
+    Stmt (..),
+    StmtOffset,
+    StringOffset,
+    Type (..),
+    TypeOffset,
+  )
 import Data.Char (isAlphaNum, isLower, isSpace, isUpper)
+import Data.Maybe (catMaybes)
 import Text.ParserCombinators.ReadP
   ( ReadP,
     char,
@@ -46,139 +55,164 @@ space = do
       space
     _ -> return ()
 
-token :: ReadP a -> ReadP a
-token = (space *>)
+token :: ReadP a -> ReadP (Int, a)
+token p = do
+  _ <- space
+  offset <- length <$> look
+  (offset,) <$> p
 
-lowerIdent :: ReadP String
+lowerIdent :: ReadP StringOffset
 lowerIdent = token $ (:) <$> satisfy isLower <*> munch isAlphaNum
 
-upperIdent :: ReadP String
+upperIdent :: ReadP StringOffset
 upperIdent = token $ (:) <$> satisfy isUpper <*> munch isAlphaNum
 
-comma :: ReadP Char
+comma :: ReadP (Int, Char)
 comma = token $ char ','
 
-keyValues :: ReadP a -> ReadP [(String, a)]
+keyValues :: ReadP a -> ReadP [(StringOffset, a)]
 keyValues p = sepBy ((,) <$> (lowerIdent <* token (char ':')) <*> p) comma
 
-leftParen :: ReadP Char
+leftParen :: ReadP (Int, Char)
 leftParen = token $ char '('
 
-rightParen :: ReadP Char
+rightParen :: ReadP (Int, Char)
 rightParen = token $ char ')'
 
-leftBrace :: ReadP Char
+leftBrace :: ReadP (Int, Char)
 leftBrace = token $ char '{'
 
-rightBrace :: ReadP Char
+rightBrace :: ReadP (Int, Char)
 rightBrace = token $ char '}'
 
-arrow :: ReadP String
+arrow :: ReadP StringOffset
 arrow = token $ string "->"
 
-typeFunc :: ReadP Type
+typeFunc :: ReadP TypeOffset
 typeFunc = do
-  _ <- leftParen
+  (offset, _) <- leftParen
   args <- sepBy type' comma
   _ <- rightParen
   _ <- arrow
-  TypeFunc args <$> type'
+  (offset,) . TypeFunc args <$> type'
 
-typeSymbol :: ReadP Type
-typeSymbol = TypeSymbol <$> upperIdent
+typeSymbol :: ReadP TypeOffset
+typeSymbol = (TypeSymbol <$>) <$> upperIdent
 
-typeObj :: ReadP Type
+typeObj :: ReadP TypeOffset
 typeObj = do
-  _ <- leftBrace
+  (offset, _) <- leftBrace
   pairs <- sepBy1 ((,) <$> (lowerIdent <* token (char ':')) <*> type') comma
   _ <- rightBrace
-  return $ TypeObj pairs
+  return (offset, TypeObj pairs)
 
-typeVar :: ReadP Type
-typeVar =
-  TypeVar
-    <$> (token (char '\'') *> munch1 isLower)
-    <*> pure 0
+typeVar :: ReadP TypeOffset
+typeVar = do
+  (offset, _) <- token (char '\'')
+  var <- munch1 isLower
+  return (offset, TypeVar var 0)
 
-type' :: ReadP Type
+type' :: ReadP TypeOffset
 type' = choice [typeFunc, typeSymbol, typeObj, typeVar]
 
-exprCall :: ReadP Expr
+exprCall :: ReadP ExprOffset
 exprCall = do
-  _ <- leftParen
+  (offset, _) <- leftParen
   func <- expr
   args <- many expr
   _ <- rightParen
-  return $ ExprCall func args
+  return (offset, ExprCall func args)
 
-exprFunc :: ReadP Expr
+exprFunc :: ReadP ExprOffset
 exprFunc = do
-  _ <- token $ char '\\'
+  (offset, _) <- token $ char '\\'
   _ <- leftParen
   args <- keyValues type'
   _ <- rightParen
   _ <- arrow
   returnType <- type'
   _ <- token $ char '='
-  ExprFunc args returnType <$> expr
+  (offset,) . ExprFunc args returnType <$> expr
 
-exprLabel :: ReadP Expr
-exprLabel = ExprLabel <$> lowerIdent
+exprLabel :: ReadP ExprOffset
+exprLabel = (ExprLabel <$>) <$> lowerIdent
 
-exprObj :: ReadP Expr
+exprObj :: ReadP ExprOffset
 exprObj = do
-  _ <- leftBrace
+  (offset, _) <- leftBrace
   pairs <- keyValues expr
   _ <- rightBrace
-  return $ ExprObj pairs
+  return (offset, ExprObj pairs)
 
-exprSymbol :: ReadP Expr
-exprSymbol = ExprSymbol <$> upperIdent
+exprSymbol :: ReadP ExprOffset
+exprSymbol = (ExprSymbol <$>) <$> upperIdent
 
-expr :: ReadP Expr
+expr :: ReadP ExprOffset
 expr = choice [exprCall, exprFunc, exprLabel, exprObj, exprSymbol]
 
-stmtBinding :: ReadP Stmt
+stmtBinding :: ReadP StmtOffset
 stmtBinding = do
-  label <- lowerIdent
+  (offset, label) <- lowerIdent
   _ <- token $ char '='
-  StmtBinding label <$> expr
+  (offset,) . StmtBinding label <$> expr
 
-stmtVoid :: ReadP Stmt
-stmtVoid = StmtVoid <$> expr
+stmtVoid :: ReadP StmtOffset
+stmtVoid = do
+  expr'@(offset, _) <- expr
+  return (offset, StmtVoid expr')
 
-stmt :: ReadP Stmt
+stmt :: ReadP StmtOffset
 stmt = choice [stmtBinding, stmtVoid]
 
 enumerateType :: Int -> Type -> Type
 enumerateType k (TypeFunc argTypes returnType) =
-  TypeFunc (map (enumerateType k) argTypes) (enumerateType k returnType)
-enumerateType _ type''@(TypeSymbol _) = type''
+  TypeFunc
+    (map (enumerateType k <$>) argTypes)
+    (enumerateType k <$> returnType)
+enumerateType _ existing@(TypeSymbol _) = existing
 enumerateType k (TypeObj pairs) =
-  TypeObj $ map (enumerateType k <$>) pairs
+  TypeObj $ map ((enumerateType k <$>) <$>) pairs
 enumerateType k (TypeVar var _) = TypeVar var k
 
 enumerateExpr :: Int -> Expr -> Expr
 enumerateExpr k (ExprCall func args) =
-  ExprCall (enumerateExpr k func) (map (enumerateExpr k) args)
+  ExprCall (enumerateExpr k <$> func) (map (enumerateExpr k <$>) args)
 enumerateExpr k (ExprFunc argTypes returnType returnExpr) =
   ExprFunc
-    (map (enumerateType k <$>) argTypes)
-    (enumerateType k returnType)
-    (enumerateExpr k returnExpr)
+    (map ((enumerateType k <$>) <$>) argTypes)
+    (enumerateType k <$> returnType)
+    (enumerateExpr k <$> returnExpr)
 enumerateExpr _ expr'@(ExprLabel _) = expr'
 enumerateExpr k (ExprObj pairs) =
-  ExprObj $ map (enumerateExpr k <$>) pairs
+  ExprObj $ map ((enumerateExpr k <$>) <$>) pairs
 enumerateExpr _ expr'@(ExprSymbol _) = expr'
 
 enumerateStmt :: Int -> Stmt -> Stmt
 enumerateStmt k (StmtBinding label expr') =
-  StmtBinding label $ enumerateExpr k expr'
-enumerateStmt k (StmtVoid expr') = StmtVoid $ enumerateExpr k expr'
+  StmtBinding label $ enumerateExpr k <$> expr'
+enumerateStmt k (StmtVoid expr') = StmtVoid $ enumerateExpr k <$> expr'
 
-parse :: String -> [Stmt]
-parse =
-  zipWith enumerateStmt [0 ..]
-    . fst
-    . head
-    . readP_to_S (many1 stmt <* token eof)
+extractBinding :: StmtOffset -> Either Int (Maybe (String, TypeOffset))
+extractBinding (offset, StmtBinding _ (_, ExprCall {})) = Left offset
+extractBinding (_, StmtBinding label (offset, ExprFunc args returnType _)) =
+  Right $ Just (label, (offset, TypeFunc (map snd args) returnType))
+extractBinding (_, StmtBinding _ (offset, ExprLabel _)) = Left offset
+extractBinding (_, StmtBinding _ (offset, ExprObj _)) = Left offset
+extractBinding (_, StmtBinding label (offset, ExprSymbol symbol)) =
+  Right $ Just (label, (offset, TypeSymbol symbol))
+extractBinding (_, StmtVoid _) = Right Nothing
+
+extractExpr :: StmtOffset -> ExprOffset
+extractExpr (_, StmtBinding _ expr') = expr'
+extractExpr (_, StmtVoid expr') = expr'
+
+parse :: String -> Either Int ([(String, TypeOffset)], [ExprOffset])
+parse source =
+  case readP_to_S (many1 stmt <* token (pure ())) source of
+    ((stmts, []) : _) -> do
+      let ast = zipWith (\k -> (enumerateStmt k <$>)) [0 ..] stmts
+      bindings <- catMaybes <$> mapM extractBinding ast
+      let program = map extractExpr ast
+      return (bindings, program)
+    ((_, remaining) : _) -> Left $ length remaining
+    _ -> Left $ length source

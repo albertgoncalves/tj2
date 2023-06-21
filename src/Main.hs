@@ -1,37 +1,33 @@
-import Ast (Expr (..), Stmt (..), Type (..))
 import qualified Data.Map as M
-import Data.Maybe (mapMaybe)
 import Infer (infer)
 import Parse (parse)
 import System.Environment (getArgs)
+import System.Exit (exitFailure)
+import Text.Printf (printf)
 
-extractBinding :: Stmt -> Maybe (String, Type)
-extractBinding (StmtBinding _ (ExprCall {})) = undefined
-extractBinding (StmtBinding label (ExprFunc args returnType _)) =
-  Just (label, TypeFunc (map snd args) returnType)
-extractBinding (StmtBinding _ (ExprLabel _)) = undefined
-extractBinding (StmtBinding _ (ExprObj _)) = undefined
-extractBinding (StmtBinding label (ExprSymbol symbol)) =
-  Just (label, TypeSymbol symbol)
-extractBinding (StmtVoid _) = Nothing
+rowCol :: Int -> Int -> String -> Int -> (Int, Int)
+rowCol y x _ 0 = (y, x)
+rowCol y _ ('\n' : cs) i = rowCol (y + 1) 1 cs (i - 1)
+rowCol y x (_ : cs) i = rowCol y (x + 1) cs (i - 1)
+rowCol _ _ _ _ = undefined
 
-extractExpr :: Stmt -> Expr
-extractExpr (StmtBinding _ expr) = expr
-extractExpr (StmtVoid expr) = expr
+exit :: String -> String -> String -> Int -> IO a
+exit path source message offset = do
+  putStrLn $ printf "%s:%d:%d: %s" path row col message
+  exitFailure
+  where
+    (row, col) = rowCol 1 1 source (length source - offset)
 
 main :: IO ()
 main = do
-  [pathIn] <- getArgs
-  source <- readFile pathIn
+  [path] <- getArgs
+  source <- readFile path
+  (bindings, program) <-
+    either (exit path source "Invalid syntax") return $ parse source
+  let types = mapM (infer $ M.fromList bindings) program
 
-  let ast = parse source
   putChar '\n'
-  mapM_ print ast
+  mapM_ (print . (snd <$>)) bindings
 
-  let bindings = M.fromList $ mapMaybe extractBinding ast
   putChar '\n'
-  mapM_ print $ M.toList bindings
-
-  let program = map extractExpr ast
-  putChar '\n'
-  mapM_ print $ zip (map (infer bindings) program) program
+  either (uncurry $ exit path source) (mapM_ print . zip program) types

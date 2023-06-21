@@ -1,41 +1,61 @@
 module Ast where
 
+import Data.Bifunctor (bimap)
 import Data.List (intercalate)
 import Text.Printf (printf)
 
 data Type
-  = TypeFunc [Type] Type
+  = TypeFunc [TypeOffset] TypeOffset
   | TypeSymbol String
-  | TypeObj [(String, Type)]
+  | TypeObj [(StringOffset, TypeOffset)]
   | TypeVar String Int
-  deriving (Eq, Ord)
 
 data Expr
-  = ExprCall Expr [Expr]
-  | ExprFunc [(String, Type)] Type Expr
+  = ExprCall ExprOffset [ExprOffset]
+  | ExprFunc [(StringOffset, TypeOffset)] TypeOffset ExprOffset
   | ExprLabel String
-  | ExprObj [(String, Expr)]
+  | ExprObj [(StringOffset, ExprOffset)]
   | ExprSymbol String
 
 data Stmt
-  = StmtBinding String Expr
-  | StmtVoid Expr
+  = StmtBinding String ExprOffset
+  | StmtVoid ExprOffset
+
+type StringOffset = (Int, String)
+
+type TypeOffset = (Int, Type)
+
+type ExprOffset = (Int, Expr)
+
+type StmtOffset = (Int, Stmt)
 
 instance Show Type where
-  show (TypeFunc args returnType) =
-    printf "(%s) -> %s" (commaDelim $ map show args) (show returnType)
+  show (TypeFunc args (_, returnType)) =
+    printf "(%s) -> %s" (commaDelim $ map (show . snd) args) (show returnType)
   show (TypeSymbol symbol) = symbol
   show (TypeObj []) = printf "{}"
   show (TypeObj pairs) =
     printf "{ %s }" $ commaDelim $ map (uncurry showKeyValue) pairs
-  show (TypeVar var k) = printf "'%s%d" var k
+  show (TypeVar var _) = printf "'%s" var
+
+instance Eq Type where
+  (TypeFunc leftArgs (_, leftReturn))
+    == (TypeFunc rightArgs (_, rightReturn)) =
+      (map snd leftArgs == map snd rightArgs) && (leftReturn == rightReturn)
+  (TypeSymbol leftSymbol) == (TypeSymbol rightSymbol) =
+    leftSymbol == rightSymbol
+  (TypeObj leftPairs) == (TypeObj rightPairs) =
+    map (bimap snd snd) leftPairs == map (bimap snd snd) rightPairs
+  (TypeVar leftVar leftK) == (TypeVar rightVar rightK) =
+    (leftVar == rightVar) && (leftK == rightK)
+  _ == _ = False
 
 instance Show Expr where
-  show (ExprCall func []) =
+  show (ExprCall (_, func) []) =
     printf "(%s)" $ show func
-  show (ExprCall func args) =
-    printf "(%s %s)" (show func) (unwords $ map show args)
-  show (ExprFunc args returnType returnExpr) =
+  show (ExprCall (_, func) args) =
+    printf "(%s %s)" (show func) (unwords $ map (show . snd) args)
+  show (ExprFunc args (_, returnType) (_, returnExpr)) =
     printf
       "\\(%s) -> %s = %s"
       (commaDelim $ map (uncurry showKeyValue) args)
@@ -47,11 +67,11 @@ instance Show Expr where
   show (ExprSymbol symbol) = symbol
 
 instance Show Stmt where
-  show (StmtBinding label expr) = printf "%s = %s" label (show expr)
-  show (StmtVoid expr) = show expr
+  show (StmtBinding label (_, expr)) = printf "%s = %s" label (show expr)
+  show (StmtVoid (_, expr)) = show expr
 
 commaDelim :: [String] -> String
 commaDelim = intercalate ", "
 
-showKeyValue :: Show a => String -> a -> String
-showKeyValue key = printf "%s: %s" key . show
+showKeyValue :: Show b => StringOffset -> (a, b) -> String
+showKeyValue (_, key) = printf "%s: %s" key . show . snd
