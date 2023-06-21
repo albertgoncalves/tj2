@@ -77,21 +77,15 @@ unify
   ((childTypeOffset@(_, TypeObj _), parentTypeOffset@(_, TypeObj _)) : pairs) =
     merge childTypeOffset parentTypeOffset
       >>= (unify replacements . (++ pairs))
-unify
-  _
-  ( ( (offset, childType@(TypeVar _ childK)),
-      (_, parentType@(TypeVar _ parentK))
-      )
-      : _
-    )
-    | childK == parentK =
-        let message =
-              printf
-                "Unable to unify `%s` with `%s`"
-                (show childType)
-                (show parentType) ::
-                String
-         in Left (message, offset)
+unify _ (((offset, childType@(TypeVar _ childK)), (_, parentType@(TypeVar _ parentK))) : _)
+  | childK == parentK =
+      let message =
+            printf
+              "Unable to unify `%s` with `%s`"
+              (show childType)
+              (show parentType) ::
+              String
+       in Left (message, offset)
 unify
   replacements
   ((childTypeOffset, (_, TypeVar parentVar parentK)) : pairs) =
