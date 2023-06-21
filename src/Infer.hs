@@ -168,7 +168,7 @@ infer
                 String
          in Left (message, offset)
 infer bindings (offset, ExprLabel label) =
-  maybe (Left (printf "Label `%s` not defined" label, offset)) Right $
+  maybe (Left (printf "Identifier `%s` not defined" label, offset)) Right $
     M.lookup label bindings
 infer bindings (offset, ExprObj pairs) =
   (offset,) . TypeObj . zip fields <$> mapM (infer bindings) types

@@ -24,10 +24,7 @@ main = do
   source <- readFile path
   (bindings, program) <-
     either (exit path source "Invalid syntax") return $ parse source
-  let types = mapM (infer $ M.fromList bindings) program
-
-  putChar '\n'
-  mapM_ (print . (snd <$>)) bindings
-
-  putChar '\n'
-  either (uncurry $ exit path source) (mapM_ print . zip program) types
+  either
+    (uncurry $ exit path source)
+    (mapM_ print . zip (map snd program) . (snd <$>))
+    (mapM (infer $ M.fromList bindings) program)
