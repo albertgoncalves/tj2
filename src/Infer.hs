@@ -143,7 +143,9 @@ infer bindings (offset, ExprCall funcOffset@(_, func) args) =
           if M.size replacements == 0
             then returnTypeOffset
             else swap replacements returnTypeOffset
-    _ -> Left (printf "Unable to call `%s` as a function" (show func), offset)
+    Right _ ->
+      Left (printf "Unable to call `%s` as a function" (show func), offset)
+    messageOffset@(Left _) -> messageOffset
 infer
   bindings
   (_, ExprFunc argTypes returnTypeOffset@(_, returnType) returnExpr) = do
