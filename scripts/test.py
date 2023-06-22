@@ -39,6 +39,13 @@ class Tests(TestCase):
             "9:14: Expected `X` but received `Y`",
         )
 
+    def test_error_shadow(self):
+        self.into_test(
+            "error_shadow",
+            1,
+            "2:1: Identifier `x` shadows existing binding",
+        )
+
     def test_error_var(self):
         self.into_test(
             "error_var",

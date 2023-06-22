@@ -10,6 +10,7 @@ import Ast
     TypeOffset,
   )
 import Data.Char (isAlphaNum, isLower, isSpace, isUpper)
+import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 import Text.ParserCombinators.ReadP
   ( ReadP,
@@ -25,6 +26,7 @@ import Text.ParserCombinators.ReadP
     string,
     (<++),
   )
+import Text.Printf (printf)
 
 many :: ReadP a -> ReadP [a]
 many p = many1 p <++ return []
@@ -192,27 +194,61 @@ enumerateStmt k (StmtBinding label expr') =
   StmtBinding label $ enumerateExpr k <$> expr'
 enumerateStmt k (StmtVoid expr') = StmtVoid $ enumerateExpr k <$> expr'
 
-extractBinding :: StmtOffset -> Either Int (Maybe (String, TypeOffset))
-extractBinding (offset, StmtBinding _ (_, ExprCall {})) = Left offset
-extractBinding (_, StmtBinding label (offset, ExprFunc args returnType _)) =
-  Right $ Just (label, (offset, TypeFunc (map snd args) returnType))
-extractBinding (_, StmtBinding _ (offset, ExprLabel _)) = Left offset
-extractBinding (_, StmtBinding _ (offset, ExprObj _)) = Left offset
-extractBinding (_, StmtBinding label (offset, ExprSymbol symbol)) =
-  Right $ Just (label, (offset, TypeSymbol symbol))
+extractBinding ::
+  StmtOffset -> Either (String, Int) (Maybe (StringOffset, TypeOffset))
+extractBinding (offset, StmtBinding _ (_, expr'@(ExprCall {}))) =
+  Left (message, offset)
+  where
+    message :: String
+    message = printf "Unable to bind expression `%s`" $ show expr'
+extractBinding
+  (offsetLabel, StmtBinding label (offsetExpr, ExprFunc args returnType _)) =
+    Right $
+      Just
+        ( (offsetLabel, label),
+          (offsetExpr, TypeFunc (map snd args) returnType)
+        )
+extractBinding (_, StmtBinding _ (offset, ExprLabel label)) =
+  Left (message, offset)
+  where
+    message :: String
+    message = printf "Unable to bind label `%s`" label
+extractBinding (_, StmtBinding _ (offset, expr'@(ExprObj _))) =
+  Left (message, offset)
+  where
+    message :: String
+    message = printf "Unable to bind object `%s`" $ show expr'
+extractBinding
+  (offsetLabel, StmtBinding label (offsetExpr, ExprSymbol symbol)) =
+    Right $ Just ((offsetLabel, label), (offsetExpr, TypeSymbol symbol))
 extractBinding (_, StmtVoid _) = Right Nothing
 
 extractExpr :: StmtOffset -> ExprOffset
 extractExpr (_, StmtBinding _ expr') = expr'
 extractExpr (_, StmtVoid expr') = expr'
 
-parse :: String -> Either Int ([(String, TypeOffset)], [ExprOffset])
+-- NOTE: Need to check for duplicate bindings!
+intoBindings ::
+  M.Map String TypeOffset ->
+  [(StringOffset, TypeOffset)] ->
+  Either (String, Int) (M.Map String TypeOffset)
+intoBindings bindings [] = Right bindings
+intoBindings bindings (((offset, label), typeOffset) : pairs)
+  | M.notMember label bindings =
+      intoBindings (M.insert label typeOffset bindings) pairs
+  | otherwise = Left (message, offset)
+  where
+    message :: String
+    message = printf "Identifier `%s` shadows existing binding" label
+
+parse ::
+  String -> Either (String, Int) (M.Map String TypeOffset, [ExprOffset])
 parse source =
   case readP_to_S (many1 stmt <* token (pure ())) source of
     ((stmts, []) : _) -> do
       let ast = zipWith (\k -> (enumerateStmt k <$>)) [0 ..] stmts
-      bindings <- catMaybes <$> mapM extractBinding ast
-      let program = map extractExpr ast
-      return (bindings, program)
-    ((_, remaining) : _) -> Left $ length remaining
-    _ -> Left $ length source
+      pairs <- catMaybes <$> mapM extractBinding ast
+      bindings <- intoBindings M.empty pairs
+      return (bindings, map extractExpr ast)
+    ((_, remaining) : _) -> Left ("Invalid syntax", length remaining)
+    _ -> Left ("Invalid syntax", length source)

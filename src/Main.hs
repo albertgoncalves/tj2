@@ -1,4 +1,3 @@
-import qualified Data.Map as M
 import Infer (infer)
 import Parse (parse)
 import System.Environment (getArgs)
@@ -23,8 +22,8 @@ main = do
   [path] <- getArgs
   source <- readFile path
   (bindings, program) <-
-    either (exit path source "Invalid syntax") return $ parse source
+    either (uncurry $ exit path source) return $ parse source
   either
     (uncurry $ exit path source)
     (mapM_ print . zip (map snd program) . (snd <$>))
-    (mapM (infer $ M.fromList bindings) program)
+    (mapM (infer bindings) program)
