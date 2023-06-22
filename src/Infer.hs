@@ -39,8 +39,8 @@ merge (offset, TypeObj childPairs) (_, TypeObj parentPairs)
       let message =
             printf
               "Object requires field(s) [%s], but field(s) [%s] were provided"
-              (commaDelim childKeys)
-              (commaDelim parentKeys) ::
+              (commaDelim parentKeys)
+              (commaDelim childKeys) ::
               String
        in Left (message, offset)
   | otherwise = concat <$> zipWithM merge childValues parentValues
@@ -82,8 +82,8 @@ unify _ (((offset, childType@(TypeVar _ childK)), (_, parentType@(TypeVar _ pare
       let message =
             printf
               "Unable to unify `%s` with `%s`"
-              (show childType)
-              (show parentType) ::
+              (show parentType)
+              (show childType) ::
               String
        in Left (message, offset)
 unify
@@ -103,8 +103,8 @@ unify _ (((offset, childType), (_, parentType)) : _) = Left (message, offset)
     message =
       printf
         "Unable to unify `%s` with `%s`"
-        (show childType)
         (show parentType)
+        (show childType)
 
 swap :: M.Map (String, Int) TypeOffset -> TypeOffset -> TypeOffset
 swap replacements funcOffset@(_, TypeFunc argTypes returnTypeOffset) =
