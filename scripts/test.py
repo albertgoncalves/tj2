@@ -53,6 +53,9 @@ class Tests(TestCase):
             "5:5: Expected `{ a: 'a, b: 'c }` but received `{ a: 'a, b: 'b }`",
         )
 
+    def test_fields(self):
+        self.into_test("fields", 0, None)
+
     def test_higher_order(self):
         self.into_test("higher_order", 0, None)
 

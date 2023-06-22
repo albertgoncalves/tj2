@@ -3,10 +3,13 @@ module Infer where
 import Ast (Expr (..), ExprOffset, Type (..), TypeOffset, commaDelim)
 import Control.Monad (zipWithM)
 import Data.Bifunctor (first)
-import Data.List (sortOn)
+import Data.List (isSubsequenceOf, sortOn)
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Text.Printf (printf)
+
+unpack :: Ord b => [((a, b), c)] -> ([(a, b)], [c])
+unpack = unzip . sortOn (snd . fst)
 
 merge ::
   TypeOffset ->
@@ -35,7 +38,9 @@ merge
       lengthChild = length childArgs
       lengthParent = length parentArgs
 merge (offset, TypeObj childPairs) (_, TypeObj parentPairs)
-  | childKeys /= parentKeys =
+  | parentKeys `isSubsequenceOf` childKeys =
+      concat <$> zipWithM merge childValues parentValues
+  | otherwise =
       let message =
             printf
               "Object requires field(s) [%s], but field(s) [%s] were provided"
@@ -43,10 +48,9 @@ merge (offset, TypeObj childPairs) (_, TypeObj parentPairs)
               (commaDelim childKeys) ::
               String
        in Left (message, offset)
-  | otherwise = concat <$> zipWithM merge childValues parentValues
   where
-    (childKeyOffsets, childValues) = unzip $ sortOn (snd . fst) childPairs
-    (parentKeyOffsets, parentValues) = unzip $ sortOn (snd . fst) parentPairs
+    (childKeyOffsets, childValues) = unpack childPairs
+    (parentKeyOffsets, parentValues) = unpack parentPairs
     childKeys = map snd childKeyOffsets
     parentKeys = map snd parentKeyOffsets
 merge (offset, leftType) (_, rightType) = Left (message, offset)
