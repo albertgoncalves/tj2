@@ -1,0 +1,4 @@
+id = \(x: 'a) -> 'a =
+    x
+
+((id id) ((id id) (id X)))

@@ -32,12 +32,25 @@ class Tests(TestCase):
             "6:5: Expected `X` but received `Y`",
         )
 
+    def test_error_higher_order(self):
+        self.into_test(
+            "error_higher_order",
+            1,
+            "9:14: Expected `X` but received `Y`",
+        )
+
     def test_error_var(self):
         self.into_test(
             "error_var",
             1,
             "5:5: Expected `{ a: 'a, b: 'c }` but received `{ a: 'a, b: 'b }`",
         )
+
+    def test_higher_order(self):
+        self.into_test("higher_order", 0, None)
+
+    def test_id(self):
+        self.into_test("id", 0, None)
 
     def test_missing_ident(self):
         self.into_test("missing_ident", 1, "3:9: Identifier `x` not defined")
