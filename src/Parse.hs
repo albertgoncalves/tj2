@@ -239,7 +239,6 @@ extractExpr :: StmtOffset -> ExprOffset
 extractExpr (_, StmtBinding _ expr') = expr'
 extractExpr (_, StmtVoid expr') = expr'
 
--- NOTE: Need to check for duplicate bindings!
 intoBindings ::
   M.Map String TypeOffset ->
   [(StringOffset, TypeOffset)] ->
