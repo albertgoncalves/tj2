@@ -9,6 +9,7 @@ import Ast
     Type (..),
     TypeOffset,
   )
+import Control.Monad (when)
 import Data.Char (isAlphaNum, isLower, isSpace, isUpper)
 import qualified Data.Map as M
 import Data.Maybe (catMaybes)
@@ -27,6 +28,15 @@ import Text.ParserCombinators.ReadP
     (<++),
   )
 import Text.Printf (printf)
+
+duplicates :: Eq a => [a] -> Bool
+duplicates [] = False
+duplicates (x : xs)
+  | x `elem` xs = True
+  | otherwise = duplicates xs
+
+unpack :: [((a, b), c)] -> [b]
+unpack = map (snd . fst)
 
 many :: ReadP a -> ReadP [a]
 many p = many1 p <++ return []
@@ -105,6 +115,7 @@ typeObj :: ReadP TypeOffset
 typeObj = do
   (offset, _) <- leftBrace
   pairs <- sepBy1 ((,) <$> (lowerIdent <* token (char ':')) <*> type') comma
+  when (duplicates $ unpack pairs) pfail
   _ <- rightBrace
   return (offset, TypeObj pairs)
 
@@ -143,6 +154,7 @@ exprObj :: ReadP ExprOffset
 exprObj = do
   (offset, _) <- leftBrace
   pairs <- keyValues expr
+  when (duplicates $ unpack pairs) pfail
   _ <- rightBrace
   return (offset, ExprObj pairs)
 
