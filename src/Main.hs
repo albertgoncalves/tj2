@@ -25,5 +25,11 @@ main = do
     either (uncurry $ exit path source) return $ parse source
   either
     (uncurry $ exit path source)
-    (mapM_ print . zip (map snd program) . (snd <$>))
+    ( mapM_
+        ( \(key, value) ->
+            putStrLn $ printf "%s\n\t%s\n" (show key) (show value)
+        )
+        . zip (map snd program)
+        . (snd <$>)
+    )
     (mapM (infer bindings) program)
