@@ -32,9 +32,9 @@ class Tests(TestCase):
             "6:5: Expected `X` but received `Y`",
         )
 
-    def test_error_higher_order(self):
+    def test_error_higher_order_0(self):
         self.into_test(
-            "error_higher_order",
+            "error_higher_order_0",
             1,
             "9:14: Expected `X` but received `Y`",
         )
