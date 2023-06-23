@@ -39,6 +39,9 @@ class Tests(TestCase):
             "9:14: Expected `X` but received `Y`",
         )
 
+    def test_error_higher_order_1(self):
+        self.into_test("error_higher_order_1", 1, "?")
+
     def test_error_shadow(self):
         self.into_test(
             "error_shadow",

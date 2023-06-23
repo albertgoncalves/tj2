@@ -1,0 +1,20 @@
+f0 = \(x: 'a) -> ('b) -> { x: 'b } =
+    \(y: 'b) -> { x: 'b } =
+        { x: y }
+
+f1 = \(f: ('a) -> ('a) -> 'a) -> ('a) -> ('a) -> 'a =
+    f
+
+(f1 f0)
+
+# NOTE: Compare to the following Haskell program:
+# ```
+#   f0 :: a -> b -> [b]
+#   f0 _ x = [x]
+#
+#   f1 :: (a -> a -> a) -> (a -> a -> a)
+#   f1 f = f
+#
+#   f2 :: [a] -> [a] -> [a]
+#   f2 = f1 f0
+# ```
