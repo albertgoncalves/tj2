@@ -20,8 +20,8 @@ merge (_, childType) (_, parentType)
 merge childTypeOffset parentTypeOffset@(_, TypeVar _ _) =
   Right [(childTypeOffset, parentTypeOffset)]
 merge
-  (offset, TypeFunc childArgs childReturn)
-  (_, TypeFunc parentArgs parentReturn)
+  (offset, TypeFunc _ childArgs childReturn)
+  (_, TypeFunc _ parentArgs parentReturn)
     | lengthChild /= lengthParent =
         let message =
               printf
@@ -65,24 +65,28 @@ deref ::
   Maybe TypeOffset
 deref replacements key = do
   value <- M.lookup key replacements
-  case value of
-    (_, TypeVar var k) -> deref (M.delete key replacements) (var, k)
-    replacementTypeOffset -> return replacementTypeOffset
+  return $ case value of
+    replacementTypeOffset@(_, TypeVar var k) ->
+      fromMaybe replacementTypeOffset $
+        deref (M.delete key replacements) (var, k)
+    replacementTypeOffset -> replacementTypeOffset
 
 unify ::
+  Int ->
   M.Map (String, Int) TypeOffset ->
   [(TypeOffset, TypeOffset)] ->
   Either (String, Int) (M.Map (String, Int) TypeOffset)
-unify replacements [] = Right replacements
-unify replacements (((_, childType), (_, parentType)) : pairs)
-  | childType == parentType = unify replacements pairs
+unify _ replacements [] = Right replacements
+unify k replacements (((_, childType), (_, parentType)) : pairs)
+  | childType == parentType = unify k replacements pairs
 unify
+  k
   replacements
   ((childTypeOffset@(_, TypeObj _), parentTypeOffset@(_, TypeObj _)) : pairs) =
     merge childTypeOffset parentTypeOffset
-      >>= (unify replacements . (++ pairs))
-unify _ (((offset, childType@(TypeVar _ childK)), (_, parentType@(TypeVar _ parentK))) : _)
-  | childK == parentK =
+      >>= (unify k replacements . (++ pairs))
+unify k _ (((offset, childType@(TypeVar _ childK)), (_, parentType@(TypeVar _ parentK))) : _)
+  | (k == childK) && (childK == parentK) =
       let message =
             printf
               "Unable to unify `%s` with `%s`"
@@ -91,17 +95,19 @@ unify _ (((offset, childType@(TypeVar _ childK)), (_, parentType@(TypeVar _ pare
               String
        in Left (message, offset)
 unify
+  k
   replacements
   ((childTypeOffset, (_, TypeVar parentVar parentK)) : pairs) =
     case deref replacements parentKey of
       -- NOTE: It is very unclear to me both _how_ and _why_ this works.
       -- Sometimes you just get lucky.
       Just replacementTypeOffset ->
-        unify replacements ((replacementTypeOffset, childTypeOffset) : pairs)
-      Nothing -> unify (M.insert parentKey childTypeOffset replacements) pairs
+        unify k replacements ((replacementTypeOffset, childTypeOffset) : pairs)
+      Nothing ->
+        unify k (M.insert parentKey childTypeOffset replacements) pairs
     where
       parentKey = (parentVar, parentK)
-unify _ (((offset, childType), (_, parentType)) : _) = Left (message, offset)
+unify _ _ (((offset, childType), (_, parentType)) : _) = Left (message, offset)
   where
     message :: String
     message =
@@ -111,11 +117,11 @@ unify _ (((offset, childType), (_, parentType)) : _) = Left (message, offset)
         (show childType)
 
 swap :: M.Map (String, Int) TypeOffset -> TypeOffset -> TypeOffset
-swap replacements funcOffset@(_, TypeFunc argTypes returnTypeOffset) =
+swap replacements funcOffset@(_, TypeFunc k argTypes returnTypeOffset) =
   funcType <$ funcOffset
   where
     funcType =
-      TypeFunc (map (swap replacements) argTypes) $
+      TypeFunc k (map (swap replacements) argTypes) $
         swap replacements returnTypeOffset
 swap _ existing@(_, TypeSymbol _) = existing
 swap replacements (offset, TypeObj pairs) =
@@ -129,7 +135,7 @@ infer ::
   Either (String, Int) TypeOffset
 infer bindings (offset, ExprCall funcOffset@(_, func) args) =
   case infer bindings funcOffset of
-    Right (_, TypeFunc argTypes _)
+    Right (_, TypeFunc _ argTypes _)
       | length args /= length argTypes ->
           let message =
                 printf
@@ -138,10 +144,10 @@ infer bindings (offset, ExprCall funcOffset@(_, func) args) =
                   (length args) ::
                   String
            in Left (message, offset)
-    Right (_, TypeFunc argTypes returnTypeOffset) -> do
+    Right (_, TypeFunc k argTypes returnTypeOffset) -> do
       callTypes <- mapM (infer bindings) args
       pairs <- zipWithM merge callTypes argTypes
-      replacements <- unify M.empty $ concat pairs
+      replacements <- unify k M.empty $ concat pairs
       return $
         first (const offset) $
           if M.size replacements == 0
@@ -152,13 +158,13 @@ infer bindings (offset, ExprCall funcOffset@(_, func) args) =
     messageOffset@(Left _) -> messageOffset
 infer
   bindings
-  (_, ExprFunc argTypes returnTypeOffset@(_, returnType) returnExpr) = do
+  (_, ExprFunc k argTypes returnTypeOffset@(_, returnType) returnExpr) = do
     (offset, exprType) <-
       infer
         (M.union (M.fromList $ map (first snd) argTypes) bindings)
         returnExpr
     if exprType == returnType
-      then Right (offset, TypeFunc (map snd argTypes) returnTypeOffset)
+      then Right (offset, TypeFunc k (map snd argTypes) returnTypeOffset)
       else
         let message =
               printf

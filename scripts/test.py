@@ -40,7 +40,14 @@ class Tests(TestCase):
         )
 
     def test_error_higher_order_1(self):
-        self.into_test("error_higher_order_1", 1, "?")
+        self.into_test(
+            "error_higher_order_1",
+            1,
+            "1:11: Unable to unify `{ x: 'b }` with `'a`",
+        )
+
+    def test_error_pipe(self):
+        self.into_test("error_pipe", 1, "1:13: Unable to unify `'a` with `'b`")
 
     def test_error_shadow(self):
         self.into_test(

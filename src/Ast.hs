@@ -5,14 +5,14 @@ import Data.List (intercalate)
 import Text.Printf (printf)
 
 data Type
-  = TypeFunc [TypeOffset] TypeOffset
+  = TypeFunc Int [TypeOffset] TypeOffset
   | TypeSymbol String
   | TypeObj [(StringOffset, TypeOffset)]
   | TypeVar String Int
 
 data Expr
   = ExprCall ExprOffset [ExprOffset]
-  | ExprFunc [(StringOffset, TypeOffset)] TypeOffset ExprOffset
+  | ExprFunc Int [(StringOffset, TypeOffset)] TypeOffset ExprOffset
   | ExprLabel String
   | ExprObj [(StringOffset, ExprOffset)]
   | ExprSymbol String
@@ -30,7 +30,7 @@ type ExprOffset = (Int, Expr)
 type StmtOffset = (Int, Stmt)
 
 instance Show Type where
-  show (TypeFunc args (_, returnType)) =
+  show (TypeFunc _ args (_, returnType)) =
     printf "(%s) -> %s" (commaDelim $ map (show . snd) args) (show returnType)
   show (TypeSymbol symbol) = symbol
   show (TypeObj []) = printf "{}"
@@ -39,8 +39,8 @@ instance Show Type where
   show (TypeVar var _) = printf "'%s" var
 
 instance Eq Type where
-  (TypeFunc leftArgs (_, leftReturn))
-    == (TypeFunc rightArgs (_, rightReturn)) =
+  (TypeFunc _ leftArgs (_, leftReturn))
+    == (TypeFunc _ rightArgs (_, rightReturn)) =
       (map snd leftArgs == map snd rightArgs) && (leftReturn == rightReturn)
   (TypeSymbol leftSymbol) == (TypeSymbol rightSymbol) =
     leftSymbol == rightSymbol
@@ -55,7 +55,7 @@ instance Show Expr where
     printf "(%s)" $ show func
   show (ExprCall (_, func) args) =
     printf "(%s %s)" (show func) (unwords $ map (show . snd) args)
-  show (ExprFunc args (_, returnType) (_, returnExpr)) =
+  show (ExprFunc _ args (_, returnType) (_, returnExpr)) =
     printf
       "\\(%s) -> %s = %s"
       (commaDelim $ map (uncurry showKeyValue) args)

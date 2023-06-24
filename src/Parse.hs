@@ -106,7 +106,7 @@ typeFunc = do
   args <- sepBy type' comma
   _ <- rightParen
   _ <- arrow
-  (offset,) . TypeFunc args <$> type'
+  (offset,) . TypeFunc 0 args <$> type'
 
 typeSymbol :: ReadP TypeOffset
 typeSymbol = (TypeSymbol <$>) <$> upperIdent
@@ -145,7 +145,7 @@ exprFunc = do
   _ <- arrow
   returnType <- type'
   _ <- token $ char '='
-  (offset,) . ExprFunc args returnType <$> expr
+  (offset,) . ExprFunc 0 args returnType <$> expr
 
 exprLabel :: ReadP ExprOffset
 exprLabel = (ExprLabel <$>) <$> lowerIdent
@@ -179,8 +179,9 @@ stmt :: ReadP StmtOffset
 stmt = choice [stmtBinding, stmtVoid]
 
 enumerateType :: Int -> Type -> Type
-enumerateType k (TypeFunc argTypes returnType) =
+enumerateType k (TypeFunc _ argTypes returnType) =
   TypeFunc
+    k
     (map (enumerateType k <$>) argTypes)
     (enumerateType k <$> returnType)
 enumerateType _ existing@(TypeSymbol _) = existing
@@ -191,8 +192,9 @@ enumerateType k (TypeVar var _) = TypeVar var k
 enumerateExpr :: Int -> Expr -> Expr
 enumerateExpr k (ExprCall func args) =
   ExprCall (enumerateExpr k <$> func) (map (enumerateExpr k <$>) args)
-enumerateExpr k (ExprFunc argTypes returnType returnExpr) =
+enumerateExpr k (ExprFunc _ argTypes returnType returnExpr) =
   ExprFunc
+    k
     (map ((enumerateType k <$>) <$>) argTypes)
     (enumerateType k <$> returnType)
     (enumerateExpr k <$> returnExpr)
@@ -214,11 +216,11 @@ extractBinding (offset, StmtBinding _ (_, expr'@(ExprCall {}))) =
     message :: String
     message = printf "Unable to bind expression `%s`" $ show expr'
 extractBinding
-  (offsetLabel, StmtBinding label (offsetExpr, ExprFunc args returnType _)) =
+  (offsetLabel, StmtBinding label (offsetExpr, ExprFunc k args returnType _)) =
     Right $
       Just
         ( (offsetLabel, label),
-          (offsetExpr, TypeFunc (map snd args) returnType)
+          (offsetExpr, TypeFunc k (map snd args) returnType)
         )
 extractBinding (_, StmtBinding _ (offset, ExprLabel label)) =
   Left (message, offset)
